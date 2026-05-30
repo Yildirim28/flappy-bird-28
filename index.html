@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird</title>
+    <link rel="stylesheet" href="flappy-style.css">
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div class="overlay" id="startOverlay">
+            <h2>Flappy Bird</h2>
+            <p>Press Space or Click to Start</p>
+            <p class="hint">Tap or press any key to flap!</p>
+        </div>
+        <div class="overlay hidden" id="gameOverOverlay">
+            <h2>Game Over</h2>
+            <p>Score: <span id="finalScore">0</span></p>
+            <p>Best: <span id="bestScore">0</span></p>
+            <p class="hint">Press Space or Click to Restart</p>
+        </div>
+        <div class="score-display" id="scoreDisplay">0</div>
+    </div>
+    <script src="flappy-script.js"></script>
+</body>
+</html>
