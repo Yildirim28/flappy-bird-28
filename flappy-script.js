@@ -13,10 +13,22 @@ const bestScoreElement = document.getElementById('bestScore');
 const GRAVITY = 0.38; // slightly reduced for floaty feel
 const FLAP_FORCE = -9; // stronger flap impulse
 const PIPE_WIDTH = 60;
-let PIPE_GAP = 150;
-let PIPE_SPEED = 3; // mutable for progressive difficulty
-const PIPE_INTERVAL = 1600; // ms between pipe spawns
-const DIFFICULTY_INCREASE_SCORE = 5; // every N points
+// Difficulty tuning (smooth scaling with score)
+const BASE_PIPE_SPEED = 3;
+const SPEED_PER_SCORE = 0.08;
+const MAX_PIPE_SPEED = 6;
+
+const BASE_PIPE_GAP = 150;
+const GAP_PER_SCORE = 2; // gap reduces per score point
+const MIN_PIPE_GAP = 110;
+
+const BASE_PIPE_INTERVAL = 1600; // ms between pipe spawns
+const INTERVAL_REDUCTION_PER_SCORE = 10; // ms less per score
+const MIN_PIPE_INTERVAL = 1000;
+
+let PIPE_GAP = BASE_PIPE_GAP;
+let PIPE_SPEED = BASE_PIPE_SPEED;
+let PIPE_INTERVAL = BASE_PIPE_INTERVAL;
 const BIRD_WIDTH = 40;
 const BIRD_HEIGHT = 30;
 const GROUND_HEIGHT = 80;
@@ -124,6 +136,22 @@ function drawParticles() {
     ctx.globalAlpha = 1;
 }
 
+// Update difficulty values and HUD label based on current score
+function updateDifficulty() {
+    PIPE_SPEED = Math.min(MAX_PIPE_SPEED, BASE_PIPE_SPEED + score * SPEED_PER_SCORE);
+    PIPE_GAP = Math.max(MIN_PIPE_GAP, BASE_PIPE_GAP - score * GAP_PER_SCORE);
+    PIPE_INTERVAL = Math.max(MIN_PIPE_INTERVAL, BASE_PIPE_INTERVAL - score * INTERVAL_REDUCTION_PER_SCORE);
+
+    // Update HUD
+    const hud = document.getElementById('hud');
+    if (hud) {
+        let label = 'Easy';
+        if (PIPE_SPEED >= BASE_PIPE_SPEED + SPEED_PER_SCORE * 10) label = 'Hard';
+        else if (PIPE_SPEED >= BASE_PIPE_SPEED + SPEED_PER_SCORE * 4) label = 'Normal';
+        hud.textContent = `Difficulty: ${label}`;
+    }
+}
+
 // Initialize bird
 function initBird() {
     bird = {
@@ -149,6 +177,11 @@ function initGame() {
     initClouds();
     initHills();
     particles = [];
+    // reset difficulty
+    PIPE_GAP = BASE_PIPE_GAP;
+    PIPE_SPEED = BASE_PIPE_SPEED;
+    PIPE_INTERVAL = BASE_PIPE_INTERVAL;
+    updateDifficulty();
 }
 
 // Flap the bird
@@ -222,12 +255,8 @@ function update() {
             spawnParticles(bird.x + bird.width/2, bird.y + bird.height/2, 'rgba(255,215,0,0.95)', 14, 40, 2.2);
             scoreDisplay.classList.add('pop');
             setTimeout(() => scoreDisplay.classList.remove('pop'), 380);
-
-            // Progressive difficulty
-            if (score % DIFFICULTY_INCREASE_SCORE === 0) {
-                PIPE_SPEED = Math.min(6, PIPE_SPEED + 0.2);
-                PIPE_GAP = Math.max(110, PIPE_GAP - 4);
-            }
+            // update difficulty smoothly based on score
+            updateDifficulty();
         }
 
         // Remove off-screen pipes
