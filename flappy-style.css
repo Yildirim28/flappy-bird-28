@@ -84,6 +84,31 @@ canvas {
     pointer-events: none;
 }
 
+/* Score pop animation when player scores */
+.score-display.pop {
+    animation: scorePop 360ms cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes scorePop {
+    0% { transform: translateX(-50%) scale(1); opacity: 0.9; }
+    40% { transform: translateX(-50%) scale(1.35); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+/* Simple HUD panel for small score + best */
+.hud {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    background: rgba(0,0,0,0.25);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    z-index: 6;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+}
+
 @media (max-width: 480px) {
     .game-container {
         width: 320px;

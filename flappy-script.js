@@ -9,13 +9,14 @@ const scoreDisplay = document.getElementById('scoreDisplay');
 const finalScoreElement = document.getElementById('finalScore');
 const bestScoreElement = document.getElementById('bestScore');
 
-// Game constants
-const GRAVITY = 0.5;
-const FLAP_FORCE = -8;
+// Game constants (tuned for snappier feel)
+const GRAVITY = 0.38; // slightly reduced for floaty feel
+const FLAP_FORCE = -9; // stronger flap impulse
 const PIPE_WIDTH = 60;
-const PIPE_GAP = 150;
-const PIPE_SPEED = 3;
+let PIPE_GAP = 150;
+let PIPE_SPEED = 3; // mutable for progressive difficulty
 const PIPE_INTERVAL = 1600; // ms between pipe spawns
+const DIFFICULTY_INCREASE_SCORE = 5; // every N points
 const BIRD_WIDTH = 40;
 const BIRD_HEIGHT = 30;
 const GROUND_HEIGHT = 80;
@@ -52,6 +53,14 @@ const COLORS = {
 
 // Cloud data
 let clouds = [];
+let hillsFar = [];
+let hillsNear = [];
+let particles = [];
+
+// Linear interpolation helper
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
 
 // Initialize clouds
 function initClouds() {
@@ -64,6 +73,55 @@ function initClouds() {
             speed: Math.random() * 0.5 + 0.2
         });
     }
+}
+
+// Hills for parallax (simple arc shapes)
+function initHills() {
+    hillsFar = [];
+    hillsNear = [];
+    for (let i = 0; i < 3; i++) {
+        hillsFar.push({ x: i * (canvas.width / 2), speed: 0.25, height: 60 + Math.random() * 30 });
+        hillsNear.push({ x: i * (canvas.width / 1.2), speed: 0.6, height: 40 + Math.random() * 30 });
+    }
+}
+
+// Particle system for score/hit feedback
+function spawnParticles(x, y, color = 'rgba(255,255,255,0.9)', count = 12, spread = 30, speed = 2) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const s = (Math.random() * 0.6 + 0.4) * speed;
+        particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * s,
+            vy: Math.sin(angle) * s - Math.random() * 1.5,
+            life: 60 + Math.random() * 30,
+            color: color,
+            size: Math.random() * 3 + 1
+        });
+    }
+}
+
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.vy += 0.06; // gravity on particles
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 1;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.life / 80);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 }
 
 // Initialize bird
@@ -89,12 +147,14 @@ function initGame() {
     frameCount = 0;
     scoreDisplay.textContent = '0';
     initClouds();
+    initHills();
+    particles = [];
 }
 
 // Flap the bird
 function flap() {
     bird.velocity = FLAP_FORCE;
-    bird.flapFrame = 10;
+    bird.flapFrame = 12;
 }
 
 // Spawn a pipe
@@ -121,12 +181,9 @@ function update() {
     bird.velocity += GRAVITY;
     bird.y += bird.velocity;
 
-    // Bird rotation based on velocity
-    if (bird.velocity < 0) {
-        bird.rotation = Math.max(-30, bird.velocity * 3);
-    } else {
-        bird.rotation = Math.min(90, bird.velocity * 3);
-    }
+    // Smooth rotation using lerp for less jitter
+    const targetRot = bird.velocity * 3;
+    bird.rotation = lerp(bird.rotation, Math.max(-40, Math.min(90, targetRot)), 0.08);
 
     // Flap animation
     if (bird.flapFrame > 0) {
@@ -161,6 +218,16 @@ function update() {
             pipes[i].scored = true;
             score++;
             scoreDisplay.textContent = score;
+            // visual/audio feedback
+            spawnParticles(bird.x + bird.width/2, bird.y + bird.height/2, 'rgba(255,215,0,0.95)', 14, 40, 2.2);
+            scoreDisplay.classList.add('pop');
+            setTimeout(() => scoreDisplay.classList.remove('pop'), 380);
+
+            // Progressive difficulty
+            if (score % DIFFICULTY_INCREASE_SCORE === 0) {
+                PIPE_SPEED = Math.min(6, PIPE_SPEED + 0.2);
+                PIPE_GAP = Math.max(110, PIPE_GAP - 4);
+            }
         }
 
         // Remove off-screen pipes
@@ -197,6 +264,19 @@ function update() {
             cloud.y = Math.random() * (canvas.height - GROUND_HEIGHT - 200) + 30;
         }
     }
+
+    // Update hills (parallax)
+    for (const h of hillsFar) {
+        h.x -= h.speed;
+        if (h.x + canvas.width/2 < -50) h.x = canvas.width + 20;
+    }
+    for (const h of hillsNear) {
+        h.x -= h.speed;
+        if (h.x + canvas.width/1.2 < -50) h.x = canvas.width + 20;
+    }
+
+    // Update particles
+    updateParticles();
 }
 
 // Game over
@@ -209,6 +289,8 @@ function gameOver() {
     bestScoreElement.textContent = bestScore;
     gameOverOverlay.classList.remove('hidden');
     scoreDisplay.style.display = 'none';
+    // big hit particles
+    spawnParticles(bird.x + bird.width/2, bird.y + bird.height/2, 'rgba(240,60,60,0.95)', 30, 60, 3.5);
 }
 
 // Start game
@@ -230,9 +312,19 @@ function drawBackground() {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height - GROUND_HEIGHT);
 
+    // Parallax hills (far)
+    for (const h of hillsFar) {
+        drawHill(h.x, canvas.height - GROUND_HEIGHT - 20, h.height, 'rgba(20,90,70,0.12)');
+    }
+
     // Clouds
     for (const cloud of clouds) {
         drawCloud(cloud.x, cloud.y, cloud.width);
+    }
+
+    // Parallax hills (near)
+    for (const h of hillsNear) {
+        drawHill(h.x - 40, canvas.height - GROUND_HEIGHT + 10, h.height + 20, 'rgba(10,120,80,0.18)');
     }
 }
 
@@ -247,6 +339,17 @@ function drawCloud(x, y, width) {
     ctx.fill();
     ctx.beginPath();
     ctx.ellipse(x + width / 4, y + width / 8, width / 3, width / 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawHill(x, baseY, h, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x - 200, baseY + 100);
+    ctx.quadraticCurveTo(x + 80, baseY - h, x + 400, baseY + 100);
+    ctx.lineTo(x + 400, baseY + 200);
+    ctx.lineTo(x - 200, baseY + 200);
+    ctx.closePath();
     ctx.fill();
 }
 
@@ -370,6 +473,9 @@ function draw() {
     }
 
     drawGround();
+
+    // Draw particles behind bird for depth
+    drawParticles();
 
     // Draw bird
     drawBird();
